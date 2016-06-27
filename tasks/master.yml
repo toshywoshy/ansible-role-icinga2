@@ -1,0 +1,158 @@
+- name: install icinga2 packages
+  action: yum name={{ item }} state=latest
+  with_items:
+    - icinga2-common
+    - icinga2-bin
+    - icinga2-python
+    - icinga2
+    - icinga2-ido-pgsql
+    - icingaweb2
+    - python-carbon
+    - python-whisper
+    #- graphite-web-httpd
+    - graphite-web
+    - libXrender
+    - libX11
+    - nrpe
+    - nagios-plugins
+    - nagios-plugins-ping
+    - nagios-plugins-nrpe
+    - nagios-plugins-disk
+    - nagios-plugins-load
+    - nagios-plugins-users
+    - nagios-plugins-procs
+    - nagios-plugins-swap
+    - nagios-plugins-ssh
+    - nagios-plugins-tcp
+    - nagios-plugins-check_rbl
+    - nagios-plugins-by_ssh
+    - nagios-plugins-dig
+    - nagios-plugins-http
+    - nagios-plugins-smtp
+    - nagios-plugins-dns
+    - nagios-plugins-snmp
+    #- nagion-plugins-check_snmp_printer
+    #- nagios-plugins-check_iostat
+
+- name: copy main icinga2 configuration files
+  action: template src={{ item }} dest=/etc/icinga2/{{ item }} owner=icinga group=icinga mode=550 setype=etc_t
+  with_items:
+    - icinga2.conf
+    - zones.conf
+    - constants.conf
+
+- name: copy features configuration files into icinga2 feature activation directory
+  action: template src={{ item }} dest=/etc/icinga2/features-available/{{ item }}
+  with_items:
+    - api.conf
+    - ido-pgsql.conf
+    - graphite.conf
+
+- name: activate icinga2 features
+  action: command /usr/sbin/icinga2 feature enable {{ item }}
+  with_items:
+    - ido-pgsql
+    - graphite
+
+- name: check if a configuration already exists
+  action: stat path=/etc/icinga2/conf.d/templates.conf
+  register: defaultconfig
+
+- name: remove default configuration
+  action: file dest=/etc/icinga2/conf.d state=absent
+  when: defaultconfig.stat.isdir is defined and defaultconfig.stat.isdir == false
+
+- name: create configuration directory
+  action: file dest=/etc/icinga2/conf.d owner=icinga group=icinga mode=550 setype=etc_t state=directory
+
+- name: create the conf.d folders
+  action: file dest=/etc/icinga2/{{ item }} owner=icinga group=icinga mode=550 setype=etc_t state=directory
+  with_items:
+    - conf.d
+    - conf.d/hosts
+    - conf.d/templates/
+    - conf.d/commands/
+
+- name: copy templated icinga2 config files
+  action: template src={{ item.src }} dest=/etc/icinga2/conf.d/{{ item.dest }} owner=icinga group=icinga mode=550 setype=etc_t
+  with_items:
+    - { src: users.conf , dest: users.conf }
+    - { src: timeperiods.conf , dest: timeperiods.conf }
+    - { src: downtimes.conf , dest: downtimes.conf }
+    - { src: groups.conf , dest: groups.conf }
+    - { src: commands_check.conf , dest: commands/check.conf }
+    - { src: commands_notifications.conf , dest: commands/notifictions.conf }
+    - { src: templates_users.conf , dest: templates/users.conf }
+    - { src: templates_services.conf , dest: templates/services.conf }
+    - { src: templates_hosts.conf , dest: templates/hosts.conf }
+    - { src: templates_schedules.conf , dest: templates/schedules.conf }
+    - { src: templates_notifications.conf , dest: templates/notifications.conf }
+
+- name: create the zone folders
+  action: file dest=/etc/icinga2/zones.d/{{ item.zonename }} owner=icinga group=icinga mode=550 setype=etc_t state=directory
+  with_items: icinga2_zones
+
+- name: create the pki folders
+  action: file dest=/etc/icinga2/pki owner=icinga group=icinga mode=550 setype=etc_t state=directory
+
+- name: copy ca.crt file in the pki folder
+  action: copy src=/drives/datadrive/.ansible/icinga2cert/ca.crt dest=/etc/icinga2/pki/ca.crt
+
+- name: setup pki certificates for zones to talk to each other
+  action: copy src=/drives/datadrive/.ansible/icinga2cert/{{ item.nodename }}.crt dest=/etc/icinga2/pki/{{ item.nodename }}.crt
+  with_items: icinga2_zones
+
+- name: setup pki private keys for zones to talk to each other
+  action: copy src=/drives/datadrive/.ansible/icinga2cert/{{ item.nodename }}.key dest=/etc/icinga2/pki/{{ item.nodename }}.key
+  with_items: icinga2_zones
+
+- name: enable http to talk to db
+  action: seboolean name=httpd_can_network_connect_db state=yes persistent=yes
+
+#- name: copy the user templates
+#  action: template src=contact.cfg dest=/etc/shinken/objects/contacts/{{ item.name }}.cfg owner=nagios group=nagios mode=550 setype=etc_t
+#  with_items: shinken_contacts
+
+- name: copy templated supervisord files
+  action: template src={{ item }} dest=/etc/carbon/{{ item }}
+  with_items:
+    - carbon.conf
+    - storage-schemas.conf
+    - storage-aggregation.conf
+    - relay-rules.conf
+
+- name: copy templated supervisord files
+  action: template src={{ item.src }} dest=/etc/graphite-web/{{ item.dest }}
+  with_items:
+    - { src: graphite_dashboard.conf , dest: dashboard.conf }
+    - { src: graphite_local_settings.py , dest: local_settings.py }
+
+- name: increase number of max open files
+  action: sysctl name=fs.file-max value=40623700
+
+- name: copy templated supervisord files
+  action: template src={{ item }} dest=/etc/supervisord.d/{{ item }}
+  with_items:
+    - graphite.ini
+    #- carbon.ini
+
+#- name: start supervisord
+#  action: service name=supervisord state=restarted enabled=yes
+#- name: start supervisord deamons
+#  action: supervisorctl name={{ item }} state=restarted
+#  with_items:
+#    - graphite
+#    #- carbon
+
+- name: start carbon service
+  action: service name={{ item }} state=restarted enabled=yes
+  with_items:
+    - carbon-aggregator
+    - carbon-cache
+    - carbon-relay
+
+- name: initiate django database syncdb
+  action: django_manage command=syncdb app_path=/usr/lib/python2.7/site-packages/graphite/
+
+- name: set correct permissions on the django database
+  action: file path=/var/lib/graphite-web/storage/graphite.db3 owner=apache group=apache mode=660 setype=var_lib_t
