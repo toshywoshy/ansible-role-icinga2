@@ -1,5 +1,5 @@
 - name: check whether icinga2 variable are set correctly
-  action: fail msg="Icinga2 variables set incorrectly, please set OR master OR zone, do not set both at the same time."
+  action: fail msg="Icinga2 variables set incorrectly, please set OR master OR zone OR client, do not set both at the same time."
   when: icinga2_master is defined and icinga2_zone is defined
 
 - name: install icinga2 master
@@ -9,3 +9,7 @@
 - name: install icinga2 zonemaster
   include: zonemaster.yml
   when: icinga2_zonemaster is defined and icinga2_zonemaster == true
+
+- name: install icinga2 client
+  include: client.yml
+  when: icinga2_client is defined and icinga2_client == true
