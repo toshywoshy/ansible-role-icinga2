@@ -1,0 +1,37 @@
+- name: install icinga2 client packages and dependencies
+  yum:
+    pkg: "{{ item }}"
+    state: latest
+  with_items:
+    - icinga2
+    - nagios-plugins-disk
+    - nagios-plugins-load
+    - nagios-plugins-users
+    - nagios-plugins-procs
+    - nagios-plugins-swap
+    - nagios-plugins-check_iostat
+    - bc
+    - sysstat
+
+- name: base nrpe config
+  template:
+    src: icinga2_client.conf
+    dest: /etc/icinga2/client.conf
+
+- name: nrpe commands
+  template:
+    src: "{{ item }}.cfg"
+    dest:/etc/nrpe.d/
+  with_items:
+    - users
+    - disk
+    - procs
+    - load
+    - swap
+    - iostat
+
+- name: restart nrpe daemon
+  service:
+    name: icinga2
+    state: restarted
+    enabled: yes
