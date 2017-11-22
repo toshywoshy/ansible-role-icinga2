@@ -13,15 +13,15 @@
     - bc
     - sysstat
 
-- name: base nrpe config
+- name: icinga2 client config
   template:
     src: icinga2_client.conf
     dest: /etc/icinga2/client.conf
 
-- name: nrpe commands
+- name: icinga2 commands
   template:
     src: "{{ item }}.cfg"
-    dest:/etc/nrpe.d/
+    dest: "/etc/icinga2/conf.d/{{ item }}.conf"
   with_items:
     - users
     - disk
@@ -30,7 +30,7 @@
     - swap
     - iostat
 
-- name: restart nrpe daemon
+- name: restart icinga2 daemon
   service:
     name: icinga2
     state: restarted
