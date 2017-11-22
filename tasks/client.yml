@@ -35,3 +35,14 @@
     name: icinga2
     state: restarted
     enabled: yes
+
+- name: add node to master
+  template:
+    src: host.conf
+    dest: "/etc/icinga2/zones.d/{{ icinga2.zone }}/{{ inventory_hostname }}.{{ domain }}.conf"
+    owner: icinga
+    group: icinga
+    mode: 0640
+    setype: etc_t
+  delegate_to: icinga2masters
+  run_once: yes
