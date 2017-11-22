@@ -25,7 +25,7 @@
     - nagios-plugins-swap
     - nagios-plugins-ssh
     - nagios-plugins-tcp
-    - nagios-plugins-check_rbl
+    #- nagios-plugins-check_rbl
     - nagios-plugins-by_ssh
     - nagios-plugins-dig
     - nagios-plugins-http
@@ -110,10 +110,10 @@
     - src: templates_schedules.conf
       dest: templates/schedules.conf
     - src: templates_notifications.conf
-      dest: templates/notifications.conf }
+      dest: templates/notifications.conf
 
 - name: create the zone folders
-  filei:
+  file:
     dest: "/etc/icinga2/zones.d/{{ item.zonename }}"
     owner: icinga
     group: icinga
